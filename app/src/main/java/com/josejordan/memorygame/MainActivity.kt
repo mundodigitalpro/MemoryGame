@@ -53,7 +53,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateScore(points: Int) {
         score += points
-        binding.tvScore.text = "Puntuación: $score"
+        binding.tvScore.text = getString(R.string.score_text, score)
     }
 
     private fun updateCardView(index: Int) {
@@ -70,13 +70,15 @@ class MainActivity : AppCompatActivity() {
 
         // Baraja las imágenes y reinicia el estado de las cartas
         memoryCards.shuffle()
-        memoryCards.forEach {
-            it.isFaceUp = false
-            it.isMatched = false
+
+        memoryCards.forEachIndexed { index, card ->
+            card.isFaceUp = false
+            card.isMatched = false
+
+            // Actualiza la vista de la carta específica
+            (binding.rvMemoryCards.adapter as MemoryCardAdapter).notifyItemChanged(index)
         }
 
-        // Actualiza el adaptador
-        (binding.rvMemoryCards.adapter as MemoryCardAdapter).notifyDataSetChanged()
     }
 
     private fun onCardClicked(index: Int) {
