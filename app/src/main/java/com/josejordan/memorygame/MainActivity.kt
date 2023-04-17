@@ -13,6 +13,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private var memoryCards = mutableListOf<MemoryCard>()
     private var selectedCardIndex: Int? = null
+    private var score = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,15 +40,43 @@ class MainActivity : AppCompatActivity() {
         imagePairs.shuffle() // Baraja las imágenes
 
         for ((identifier, image) in imagePairs) {
-            memoryCards.add(MemoryCard(identifier, false, false, image))
+            memoryCards.add(MemoryCard(identifier,
+                isFaceUp = false,
+                isMatched = false,
+                imageResource = image
+            ))
         }
 
         binding.rvMemoryCards.layoutManager = GridLayoutManager(this, 4)
         binding.rvMemoryCards.adapter = MemoryCardAdapter(memoryCards) { index -> onCardClicked(index) }
     }
 
+    private fun updateScore(points: Int) {
+        score += points
+        binding.tvScore.text = "Puntuación: $score"
+    }
+
     private fun updateCardView(index: Int) {
         (binding.rvMemoryCards.adapter as MemoryCardAdapter).notifyItemChanged(index)
+    }
+    private fun isGameOver(): Boolean {
+        return memoryCards.all { it.isMatched }
+    }
+
+    private fun restartGame() {
+        // Reinicia la puntuación
+        score = 0
+        updateScore(0)
+
+        // Baraja las imágenes y reinicia el estado de las cartas
+        memoryCards.shuffle()
+        memoryCards.forEach {
+            it.isFaceUp = false
+            it.isMatched = false
+        }
+
+        // Actualiza el adaptador
+        (binding.rvMemoryCards.adapter as MemoryCardAdapter).notifyDataSetChanged()
     }
 
     private fun onCardClicked(index: Int) {
@@ -70,6 +99,17 @@ class MainActivity : AppCompatActivity() {
                 selectedCard.isMatched = true
                 previousCard.isMatched = true
                 selectedCardIndex = null
+                // Aumenta la puntuación y actualiza el marcador
+                updateScore(100)
+
+                if (isGameOver()) {
+                    Toast.makeText(this, "¡Fin de la partida!", Toast.LENGTH_SHORT).show()
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        Toast.makeText(this, "Comenzando una nueva partida", Toast.LENGTH_SHORT).show()
+                        restartGame()
+                    }, 2000) // Espera 2 segundos antes de reiniciar el juego
+                }
+
             } else {
                 Toast.makeText(this, "No es un par, sigue intentándolo", Toast.LENGTH_SHORT).show()
                 Handler(Looper.getMainLooper()).postDelayed({
