@@ -20,6 +20,7 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Configura la barra de acción
         supportActionBar?.title = "Juego de Memoria"
 
         val images = mutableListOf(
@@ -36,96 +37,101 @@ class MainActivity : AppCompatActivity() {
             // Agrega más imágenes y sus identificadores aquí
         )
 
-        val imagePairs = (images + images).toMutableList() // Duplica la lista de imágenes y conviértela en MutableList
+        val imagePairs =
+            (images + images).toMutableList() // Duplica la lista de imágenes y conviértela en MutableList
         imagePairs.shuffle() // Baraja las imágenes
 
+        // Crea las cartas
         for ((identifier, image) in imagePairs) {
-            memoryCards.add(MemoryCard(identifier,
-                isFaceUp = false,
-                isMatched = false,
-                imageResource = image
-            ))
+            memoryCards.add(
+                MemoryCard(
+                    identifier,
+                    isFaceUp = false,
+                    isMatched = false,
+                    imageResource = image
+                )
+            )
         }
 
+        // Configura el RecyclerView
         binding.rvMemoryCards.layoutManager = GridLayoutManager(this, 4)
-        binding.rvMemoryCards.adapter = MemoryCardAdapter(memoryCards) { index -> onCardClicked(index) }
+        // Crea el adaptador y configúralo en el RecyclerView
+        binding.rvMemoryCards.adapter =
+            MemoryCardAdapter(memoryCards) { index -> onCardClicked(index) }
     }
 
     private fun updateScore(points: Int) {
-        score += points
-        binding.tvScore.text = getString(R.string.score_text, score)
+        // Actualiza la puntuación
+        score += points // Añade los puntos a la puntuación
+        binding.tvScore.text = getString(R.string.score_text, score)// Actualiza la vista de la puntuación
     }
 
     private fun updateCardView(index: Int) {
-        (binding.rvMemoryCards.adapter as MemoryCardAdapter).notifyItemChanged(index)
+        // Actualiza la vista de la carta específica
+        (binding.rvMemoryCards.adapter as MemoryCardAdapter).notifyItemChanged(index)//
     }
-    private fun isGameOver(): Boolean {
+
+    private fun isGameOver(): Boolean {// Comprueba si el juego ha terminado
+        // Comprueba si todas las cartas están emparejadas
         return memoryCards.all { it.isMatched }
     }
 
     private fun restartGame() {
-        // Reinicia la puntuación
-        score = 0
-        updateScore(0)
-
-        // Baraja las imágenes y reinicia el estado de las cartas
-        memoryCards.shuffle()
-
-        memoryCards.forEachIndexed { index, card ->
-            card.isFaceUp = false
-            card.isMatched = false
-
-            // Actualiza la vista de la carta específica
-            (binding.rvMemoryCards.adapter as MemoryCardAdapter).notifyItemChanged(index)
+        score = 0 // Reinicia la puntuación
+        updateScore(0)// Actualiza la puntuación
+        memoryCards.shuffle()// Baraja las imágenes
+        // Reinicia el estado de las cartas
+        memoryCards.forEachIndexed { index, card -> // Itera sobre las cartas
+            card.isFaceUp = false // Voltea la carta
+            card.isMatched = false // Desempareja la carta
+            (binding.rvMemoryCards.adapter as MemoryCardAdapter).notifyItemChanged(index) // Actualiza la vista de la carta específica
         }
 
     }
 
     private fun onCardClicked(index: Int) {
-        val selectedCard = memoryCards[index]
+        val selectedCard = memoryCards[index] // Obtiene la carta seleccionada
+        if (selectedCard.isFaceUp || selectedCard.isMatched) return// Si la carta ya está volteada o emparejada, no hagas nada
+        if (selectedCardIndex == null) {// Si no hay ninguna carta seleccionada, selecciona esta carta
+           selectedCardIndex = index // Guarda el índice de la carta seleccionada
+            selectedCard.isFaceUp = true // Voltea la carta
+            updateCardView(index)  // Actualiza la vista de la carta específica
+        } else { // Si hay una carta seleccionada, comprueba si es un par
+            val previousCard = memoryCards[selectedCardIndex!!] // Obtiene la carta anterior
+            selectedCard.isFaceUp = true // Voltea la carta
+            updateCardView(index)// Actualiza la vista de la carta específica
 
-        // Si la carta ya está volteada o emparejada, no hagas nada
-        if (selectedCard.isFaceUp || selectedCard.isMatched) return
-
-        if (selectedCardIndex == null) {
-            selectedCardIndex = index
-            selectedCard.isFaceUp = true
-            updateCardView(index)
-        } else {
-            val previousCard = memoryCards[selectedCardIndex!!]
-            selectedCard.isFaceUp = true
-            updateCardView(index)
-
+            // Comprueba si es un par
             if (selectedCard.identifier == previousCard.identifier && index != selectedCardIndex) {
                 Toast.makeText(this, "¡Has encontrado un par!", Toast.LENGTH_SHORT).show()
-                selectedCard.isMatched = true
-                previousCard.isMatched = true
-                selectedCardIndex = null
-                // Aumenta la puntuación y actualiza el marcador
-                updateScore(100)
+                selectedCard.isMatched = true // Marca la carta actual como emparejada
+                previousCard.isMatched = true // Marca la carta anterior como emparejada
+                selectedCardIndex = null// Reinicia el índice de la carta seleccionada
+                updateScore(100)  // Aumenta la puntuación y actualiza el marcador
 
+                // Comprueba si el juego ha terminado
                 if (isGameOver()) {
                     Toast.makeText(this, "¡Fin de la partida!", Toast.LENGTH_SHORT).show()
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        Toast.makeText(this, "Comenzando una nueva partida", Toast.LENGTH_SHORT).show()
-                        restartGame()
+                    Handler(Looper.getMainLooper()).postDelayed({ // Espera 2 segundos antes de reiniciar el juego
+                        Toast.makeText(this, "Comenzando una nueva partida", Toast.LENGTH_SHORT)
+                            .show()
+                        restartGame() // Reinicia el juego
                     }, 2000) // Espera 2 segundos antes de reiniciar el juego
                 }
-
+                // Si no es un par, vuelve a ocultar las cartas
             } else {
                 Toast.makeText(this, "No es un par, sigue intentándolo", Toast.LENGTH_SHORT).show()
+                // Espera 1 segundo antes de ocultar las cartas
                 Handler(Looper.getMainLooper()).postDelayed({
-                    previousCard.isFaceUp = false
-                    selectedCard.isFaceUp = false
-                    updateCardView(selectedCardIndex!!)
-                    updateCardView(index)
-                    selectedCardIndex = null
+                    previousCard.isFaceUp = false // Voltea la carta anterior
+                    selectedCard.isFaceUp = false // Voltea la carta actual
+                    updateCardView(selectedCardIndex!!) // Actualiza la vista de la carta anterior
+                    updateCardView(index) // Actualiza la vista de la carta actual
+                    selectedCardIndex = null // Reinicia el índice de la carta seleccionada
                 }, 1000) // 1000ms = 1 segundo de retraso
             }
         }
     }
-
-
 }
 
 
