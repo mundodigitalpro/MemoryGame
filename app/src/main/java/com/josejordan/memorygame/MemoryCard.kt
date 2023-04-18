@@ -1,3 +1,7 @@
 package com.josejordan.memorygame
-
-data class MemoryCard(val identifier: Int, var isFaceUp: Boolean = false, var isMatched: Boolean = false, val imageResource: Int)
+data class MemoryCard(
+    val identifier: Int,
+    val imageResource: Int, // Agrega este campo para almacenar el recurso de la imagen
+    var isFaceUp: Boolean = false,
+    var isMatched: Boolean = false
+)

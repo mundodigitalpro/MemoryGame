@@ -1,9 +1,16 @@
 package com.josejordan.memorygame
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.recyclerview.widget.GridLayoutManager
 import com.josejordan.memorygame.databinding.ActivityMainBinding
@@ -15,13 +22,10 @@ class MainActivity : AppCompatActivity() {
     private var selectedCardIndex: Int? = null
     private var score = 0
     private var cardsLocked = false
-
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
         // Configura la barra de acción
         supportActionBar?.title = "Juego de Memoria"
         // Carga imágenes y crea cartas
@@ -95,58 +99,140 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun onCardClicked(index: Int) {
-        if (cardsLocked) return // Ignora los clics si las cartas están bloqueadas
-        val selectedCard = memoryCards[index] // Obtiene la carta seleccionada
-        if (selectedCard.isFaceUp || selectedCard.isMatched) return// Si la carta ya está volteada o emparejada, no hagas nada
-        if (selectedCardIndex == null) {// Si no hay ninguna carta seleccionada, selecciona esta carta
-            selectedCardIndex = index // Guarda el índice de la carta seleccionada
-            selectedCard.isFaceUp = true // Voltea la carta
-            updateCardView(index)  // Actualiza la vista de la carta específica
-        } else { // Si hay una carta seleccionada, comprueba si es un par
-            val previousCard = memoryCards[selectedCardIndex!!] // Obtiene la carta anterior
-            selectedCard.isFaceUp = true // Voltea la carta
-            updateCardView(index)// Actualiza la vista de la carta específica
+    private fun flipCard(imageView: ImageView, memoryCard: MemoryCard, onAnimationEnd: () -> Unit) {
+        val flipFrontToBack = ObjectAnimator.ofFloat(imageView, "rotationY", 0f, -90f)
+        flipFrontToBack.duration = 250
+        flipFrontToBack.interpolator = AccelerateInterpolator()
 
-            // Comprueba si es un par
-            if (selectedCard.identifier == previousCard.identifier && index != selectedCardIndex) {
-                Toast.makeText(this, "¡Has encontrado un par!", Toast.LENGTH_SHORT).show()
-                selectedCard.isMatched = true // Marca la carta actual como emparejada
-                previousCard.isMatched = true // Marca la carta anterior como emparejada
-                selectedCardIndex = null// Reinicia el índice de la carta seleccionada
-                updateScore(100)  // Aumenta la puntuación y actualiza el marcador
+        val flipBackToFront = ObjectAnimator.ofFloat(imageView, "rotationY", 90f, 0f)
+        flipBackToFront.duration = 250
+        flipBackToFront.interpolator = DecelerateInterpolator()
 
-                // Comprueba si el juego ha terminado
-                if (isGameOver()) {
-                    Toast.makeText(this, "¡Fin de la partida!", Toast.LENGTH_SHORT).show()
-                    Handler(Looper.getMainLooper()).postDelayed({ // Espera 2 segundos antes de reiniciar el juego
-                        Toast.makeText(this, "Comenzando una nueva partida", Toast.LENGTH_SHORT)
-                            .show()
-                        restartGame() // Reinicia el juego
-                    }, 2000) // Espera 2 segundos antes de reiniciar el juego
-                }
-                // Si no es un par, vuelve a ocultar las cartas
-            } else {
-                Toast.makeText(this, "No es un par, sigue intentándolo", Toast.LENGTH_SHORT).show()
-                cardsLocked = true // Bloquea las cartas antes de la acción diferida
-                // Espera 1 segundo antes de ocultar las cartas
-                Handler(Looper.getMainLooper()).postDelayed({
-                    previousCard.isFaceUp = false // Voltea la carta anterior
-                    selectedCard.isFaceUp = false // Voltea la carta actual
-
-                    //updateCardView(selectedCardIndex!!) // Actualiza la vista de la carta anterior
-
-                    if (selectedCardIndex != null) {
-                        updateCardView(selectedCardIndex!!) // Actualiza la vista de la carta anterior
-                    }
-
-                    updateCardView(index) // Actualiza la vista de la carta actual
-                    selectedCardIndex = null // Reinicia el índice de la carta seleccionada
-                    cardsLocked = false // Desbloquea las cartas después de la acción diferida
-                }, 1000) // 1000ms = 1 segundo de retraso
+        flipFrontToBack.addListener(object : AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: Animator) {
+                imageView.setImageResource(
+                    if (imageView.rotationY == 0f) R.drawable.card_back else memoryCard.imageResource
+                )
+                imageView.rotationY = 90f
             }
+        })
+
+        flipBackToFront.addListener(object : AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: Animator) {
+                onAnimationEnd()
+            }
+        })
+
+        val set = AnimatorSet()
+        set.playSequentially(flipFrontToBack, flipBackToFront)
+        set.start()
+    }
+
+
+    private fun flipCardBack(memoryCard: MemoryCard, onAnimationEnd: (() -> Unit)? = null) {
+        val index = memoryCards.indexOf(memoryCard)
+        val memoryCardViewHolder =
+            binding.rvMemoryCards.findViewHolderForAdapterPosition(index) as MemoryCardAdapter.MemoryCardViewHolder?
+        val memoryCardImageView =
+            memoryCardViewHolder?.itemView?.findViewById<ImageView>(R.id.iv_memory_card_image)
+
+        if (memoryCardImageView != null) {
+            flipCard(memoryCardImageView, memoryCard) {
+                memoryCard.isFaceUp = !memoryCard.isFaceUp
+                onAnimationEnd?.invoke()
+            }
+        } else {
+            memoryCard.isFaceUp = !memoryCard.isFaceUp
+            onAnimationEnd?.invoke()
         }
     }
+
+
+    private fun processCardPair(index: Int, memoryCardImageView: ImageView) {
+        val selectedCard = memoryCards[index]
+        val previousCard = memoryCards[selectedCardIndex!!]
+
+        if (selectedCard.identifier == previousCard.identifier && index != selectedCardIndex) {
+            Toast.makeText(this, "¡Has encontrado un par!", Toast.LENGTH_SHORT).show()
+            selectedCard.isMatched = true
+            previousCard.isMatched = true
+            selectedCardIndex = null
+            updateScore(100)
+
+            if (isGameOver()) {
+                Toast.makeText(this, "¡Fin de la partida!", Toast.LENGTH_SHORT).show()
+                Handler(Looper.getMainLooper()).postDelayed({
+                    Toast.makeText(this, "Comenzando una nueva partida", Toast.LENGTH_SHORT)
+                        .show()
+                    restartGame()
+                }, 2000)
+            }
+        } else {
+            Toast.makeText(this, "No es un par, sigue intentándolo", Toast.LENGTH_SHORT).show()
+            cardsLocked = true
+
+            Handler(Looper.getMainLooper()).postDelayed({
+                flipCardBack(previousCard) {
+                    val previousSelectedCardIndex = selectedCardIndex
+                    selectedCardIndex = null
+                    if (previousSelectedCardIndex != null) {
+                        updateCardView(previousSelectedCardIndex)
+                    }
+                }
+
+                flipCardBack(selectedCard) {
+                    updateCardView(index)
+                }
+
+                cardsLocked = false
+            }, 1000)
+
+
+        }
+    }
+
+    private fun flipSecondCard(index: Int) {
+        val selectedCard = memoryCards[index]
+        val memoryCardViewHolder =
+            binding.rvMemoryCards.findViewHolderForAdapterPosition(index) as MemoryCardAdapter.MemoryCardViewHolder
+        val memoryCardImageView =
+            memoryCardViewHolder.itemView.findViewById<ImageView>(R.id.iv_memory_card_image)
+        flipCard(memoryCardImageView, selectedCard) {
+            selectedCard.isFaceUp = true
+            updateCardView(index)
+            processCardPair(
+                index,
+                memoryCardImageView
+            ) // Pasa la variable memoryCardImageView como argumento
+        }
+    }
+
+    private fun flipFirstCard(index: Int) {
+        selectedCardIndex = index
+        val memoryCardViewHolder =
+            binding.rvMemoryCards.findViewHolderForAdapterPosition(index) as MemoryCardAdapter.MemoryCardViewHolder
+        val memoryCardImageView =
+            memoryCardViewHolder.itemView.findViewById<ImageView>(R.id.iv_memory_card_image)
+        val selectedCard = memoryCards[index]
+        flipCard(memoryCardImageView, selectedCard) {
+            selectedCard.isFaceUp = true
+            updateCardView(index)
+        }
+    }
+
+    private fun onCardClicked(index: Int) {
+        if (cardsLocked) return
+        val selectedCard = memoryCards[index]
+        if (selectedCard.isFaceUp || selectedCard.isMatched) return
+        if (selectedCardIndex == null) {
+            flipFirstCard(index)
+        } else {
+            flipSecondCard(index)
+        }
+    }
+
+
 }
+
 
 
